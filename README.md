@@ -14,5 +14,5 @@ inspired by the design of Google's [LevelDB](https://github.com/google/leveldb) 
 ## How to Run
 1. Run the main program
 ```bash
-go run cmd/main.go
+go run .
 ```
