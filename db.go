@@ -2,15 +2,36 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
 const (
 	MemtableSizeThreshold = 4096 // 4 KB
 )
+
+type DBState struct {
+	SSTableCounter int `json:"sstable_counter"`
+}
+
+// saveState serializes the current DB state to a JSON file.
+func (db *DB) saveState() error {
+	state := DBState{
+		SSTableCounter: db.sstableCounter,
+	}
+
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	statePath := filepath.Join(db.dataDir, "state.json")
+	return os.WriteFile(statePath, data, 0644)
+}
 
 type DB struct {
 	mu  sync.RWMutex
@@ -25,6 +46,24 @@ func NewDB(dir string) (*DB, error) {
 	// First, replay the WAL to recover the state
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
+	}
+
+	statePath := filepath.Join(dir, "state.json")
+	var state DBState
+
+	data, err := os.ReadFile(statePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Println("State file not found, initializing with default state.")
+			state = DBState{SSTableCounter: 1}
+		} else {
+			return nil, err
+		}
+	} else {
+		if err := json.Unmarshal(data, &state); err != nil {
+			return nil, err
+		}
+		log.Printf("Loaded state: SSTableCounter is %d", state.SSTableCounter)
 	}
 
 	walPath := fmt.Sprintf("%s/db.wal", dir)
@@ -49,7 +88,7 @@ func NewDB(dir string) (*DB, error) {
 		wal:            wal,
 		mem:            mem,
 		dataDir:        dir,
-		sstableCounter: 1,
+		sstableCounter: state.SSTableCounter,
 	}, nil
 }
 
@@ -75,6 +114,11 @@ func (db *DB) flushMemtable() error {
 	}
 
 	log.Printf("Successfully flushed memtable to %s", sstablePath)
+
+	if err := db.saveState(); err != nil {
+		log.Printf("CRITICAL ERROR: Failed to save state file: %v", err)
+		return err
+	}
 
 	log.Println("Truncating WAL file...")
 
@@ -124,7 +168,30 @@ func (db *DB) Put(key, value []byte) error {
 
 // Get retrieves a value by key.
 func (db *DB) Get(key []byte) ([]byte, bool) {
-	return db.mem.Get(key)
+	db.mu.RLock()
+	val, ok := db.mem.Get(key)
+	db.mu.RUnlock()
+	if ok {
+		return val, true
+	}
+
+	log.Printf("sstable count: %d", db.sstableCounter)
+	// Search key in newest to oldest SSTables
+	for i := db.sstableCounter - 1; i > 0; i-- {
+		sstablePath := fmt.Sprintf("%s/%05d.sst", db.dataDir, i)
+
+		val, found, err := FindInSSTable(sstablePath, key)
+		if err != nil {
+			log.Printf("Error reading SSTable %s: %v", sstablePath, err)
+			continue
+		}
+
+		if found {
+			return val, true
+		}
+	}
+
+	return nil, false
 }
 
 // Delete removes a key from the database.
