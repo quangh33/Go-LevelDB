@@ -1,4 +1,4 @@
-package wal
+package main
 
 import (
 	"bufio"
@@ -42,14 +42,11 @@ func NewWAL(path string) (*WAL, error) {
 	}, nil
 }
 
-// Close flushes any buffered data and closes the WAL file.
+// Close closes the WAL file.
 func (w *WAL) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if err := w.bw.Flush(); err != nil {
-		return err
-	}
 	return w.file.Close()
 }
 
@@ -98,7 +95,7 @@ func (w *WAL) Write(entry *LogEntry) error {
 
 // Replay reads all entries from the WAL file at the given path and reconstructs
 // the in-memory state by replaying the operations.
-func (w *WAL) Replay(path string) (map[string][]byte, error) {
+func Replay(path string) (map[string][]byte, error) {
 	// Open the file for reading only.
 	file, err := os.OpenFile(path, os.O_RDONLY, 0644)
 	if err != nil {
