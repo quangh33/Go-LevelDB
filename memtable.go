@@ -47,3 +47,7 @@ func (m *Memtable) Delete(key []byte) {
 		m.size -= len(key) + len(oldValue)
 	}
 }
+
+func (m *Memtable) ApproximateSize() int {
+	return m.size
+}

@@ -1,17 +1,34 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
 	"log"
+	"os"
+	"sync"
+)
+
+const (
+	MemtableSizeThreshold = 4096 // 4 KB
 )
 
 type DB struct {
+	mu  sync.RWMutex
 	wal *WAL
 	mem *Memtable
+
+	dataDir        string
+	sstableCounter int
 }
 
-func NewDB(path string) (*DB, error) {
+func NewDB(dir string) (*DB, error) {
 	// First, replay the WAL to recover the state
-	recoveredData, err := Replay(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
+	}
+
+	walPath := fmt.Sprintf("%s/db.wal", dir)
+	recoveredData, err := Replay(walPath)
 	if err != nil {
 		return nil, err
 	}
@@ -23,15 +40,63 @@ func NewDB(path string) (*DB, error) {
 		mem.Put([]byte(key), value)
 	}
 
-	wal, err := NewWAL(path)
+	wal, err := NewWAL(walPath)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DB{
-		wal: wal,
-		mem: mem,
+		wal:            wal,
+		mem:            mem,
+		dataDir:        dir,
+		sstableCounter: 1,
 	}, nil
+}
+
+func (db *DB) flushMemtable() error {
+	// Prevent other operations while we flush
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	log.Println("Memtable is full, starting flush...")
+
+	immutableMemtable := db.mem
+	db.mem = NewMemtable()
+
+	// Write the immutable memtable to a new SSTable in the background.
+	// We'll do it synchronously here for simplicity.
+	sstablePath := fmt.Sprintf("%s/%05d.sst", db.dataDir, db.sstableCounter)
+	db.sstableCounter++
+
+	if err := WriteSSTable(sstablePath, immutableMemtable.data.Front()); err != nil {
+		log.Printf("ERROR: Failed to write SSTable: %v", err)
+		db.mem = immutableMemtable
+		return err
+	}
+
+	log.Printf("Successfully flushed memtable to %s", sstablePath)
+
+	log.Println("Truncating WAL file...")
+
+	if err := db.wal.Close(); err != nil {
+		log.Printf("CRITICAL ERROR: Failed to close old WAL file: %v", err)
+		return err
+	}
+
+	// Re-open the WAL file with the Truncate flag to clear it.
+	walPath := fmt.Sprintf("%s/db.wal", db.dataDir)
+	file, err := os.OpenFile(walPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Printf("CRITICAL ERROR: Failed to create new WAL file: %v", err)
+		return err
+	}
+
+	db.wal = &WAL{
+		file: file,
+		bw:   bufio.NewWriter(file),
+	}
+
+	return nil
 }
 
 // Put adds or updates a key-value pair in the database.
@@ -45,8 +110,15 @@ func (db *DB) Put(key, value []byte) error {
 	if err := db.wal.Write(entry); err != nil {
 		return err
 	}
-
+	db.mu.RLock()
 	db.mem.Put(key, value)
+	currentSize := db.mem.ApproximateSize()
+	db.mu.RUnlock()
+	if currentSize > MemtableSizeThreshold {
+		if err := db.flushMemtable(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
