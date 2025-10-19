@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/huandu/skiplist"
+	"math"
 	"sync"
 )
 
@@ -13,39 +14,38 @@ type Memtable struct {
 
 func NewMemtable() *Memtable {
 	return &Memtable{
-		data: skiplist.New(skiplist.Bytes),
+		data: skiplist.New(internalKeyComparable{}),
 	}
 }
 
-func (m *Memtable) Put(key []byte, value []byte) {
+func (m *Memtable) Put(key InternalKey, value []byte) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if oldElem := m.data.Get(key); oldElem != nil {
-		oldValue := oldElem.Value.([]byte)
-		m.size -= len(key) + len(oldValue)
-	}
 	m.data.Set(key, value)
-	m.size += len(key) + len(value)
+	m.size += len(key.UserKey) + len(value)
 }
 
 func (m *Memtable) Get(key []byte) ([]byte, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	elem := m.data.Get(key)
-	if elem != nil {
-		return elem.Value.([]byte), true
+	searchKey := InternalKey{
+		UserKey: string(key),
+		SeqNum:  math.MaxUint64,
+		Type:    OpTypePut,
 	}
-	return nil, false
-}
+	elem := m.data.Find(searchKey)
+	if elem == nil {
+		return nil, false // Not found
+	}
+	foundKey := elem.Key().(InternalKey)
+	if foundKey.UserKey != string(key) {
+		return nil, false // Not a match
+	}
 
-// Delete removes a key.
-func (m *Memtable) Delete(key []byte) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if oldElem := m.data.Remove(key); oldElem != nil {
-		oldValue := oldElem.Value.([]byte)
-		m.size -= len(key) + len(oldValue)
+	if foundKey.Type == OpTypeDelete {
+		return nil, true // Found a tombstone
 	}
+	return elem.Value.([]byte), true
 }
 
 func (m *Memtable) ApproximateSize() int {
