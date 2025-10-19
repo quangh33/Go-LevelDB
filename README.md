@@ -11,8 +11,11 @@ flushing and enabling range scans.
 - [x] **Persistent, Immutable Storage**: Flushes full Memtables to immutable, sorted SSTable (.sst) files on disk
 - [x] **Efficient Lookups**: SSTables are highly structured with block-based indexes and Bloom filters to minimize disk
 reads, especially for non-existent keys.
-- [ ] **Automatic Compaction**: process to merge SSTables, reclaim space, and optimize read performance.
 
+### Future works
+- [ ] **Automatic Compaction**: process to merge SSTables, reclaim space, and optimize read performance.
+- [ ] **MANIFEST file**: a central repository for metadata, providing a consistent view of the database's structure and state
+- [ ] **LOCK file**: enforce exclusive access, LevelDB only allows 1 process to access the database at a time.
 ## Architecture Overview
 
 ![img.png](img/overview.png)
