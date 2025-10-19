@@ -15,19 +15,20 @@ reads, especially for non-existent keys.
 
 ## Architecture Overview
 
-![img.png](img/img.png)
-
-### Flush Memtable flow
-
-![img_1.png](img/img_1.png)
+![img.png](img/overview.png)
 
 ### WAL entry format
 
-![img_2.png](img/img_2.png)
+![](img/wal_format.png)
 
 ### SSTable format
 
-![img_3.png](img/img_3.png)
+![](img/sstable_format.png)
+
+### Flush Memtable flow
+
+![](img/flush.png)
+
 
 ## How to Run
 1. Run the main program
