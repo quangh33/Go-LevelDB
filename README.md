@@ -1,6 +1,6 @@
 # Go-LevelDB - A [LevelDB](https://github.com/google/leveldb)-Inspired Key-Value Store
 
-Go-LevelDB is a key-value storage engine built from scratch in Go,
+Go-LevelDB is a on-disk key-value storage engine built from scratch in Go,
 inspired by the design of Google's [LevelDB](https://github.com/google/leveldb) and the **Log-Structured Merge-Tree (LSM-Tree)** architecture.
 
 ## Core Features ✨
@@ -65,4 +65,16 @@ type IndexEntry struct {
 1. Run the main program
 ```bash
 go run .
+```
+
+## Project Structure
+```bash
+/
+├── go.mod
+├── main.go           # Example usage demonstrating core features
+├── db.go             # Main DB struct, orchestrates all components
+├── internal_key.go   # Defines the InternalKey and its custom comparator
+├── wal.go            # Write-Ahead Log implementation for durability
+├── memtable.go       # In-memory skip list-based data store
+├── sstable.go        # SSTable writing and reading with indexing and filters
 ```
