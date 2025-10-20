@@ -16,7 +16,7 @@ func main() {
 	}
 
 	log.Println("Writing data to trigger a flush...")
-	for i := 0; i < 800; i++ {
+	for i := 0; i < 1200; i++ {
 		key := []byte(fmt.Sprintf("key-%03d", i))
 		value := []byte(fmt.Sprintf("value-%03d", i))
 
