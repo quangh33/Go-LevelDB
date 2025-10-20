@@ -64,6 +64,19 @@ type IndexEntry struct {
 }
 ```
 - Only then is that single Data Block read from disk to find the key.
+### Compaction Path 🧹
+Compaction is the background process that cleans up and optimizes the on-disk storage. It reduces the number of SSTable
+files (improving read performance) and reclaims space from old, overwritten, or deleted data.
+1. **Trigger**: A compaction is automatically scheduled when the number of active SSTable files exceeds a threshold (e.g., 4). 
+This check is performed immediately after a flush is initiated.
+2. **Input Selection**: A background goroutine starts and selects all currently active SSTable files as its input for the merge.
+3. **K-Way Merge**: The process performs a memory-efficient merge of all input SSTables using a **min-heap**
+4. **De-duplication**: As the merge proceeds, it keeps only the newest version of each key.
+Because the heap is sorted by user key and then by descending sequence number, the first time a user key is encountered,
+it is guaranteed to be the newest version. All subsequent older versions are discarded.
+5. **Crash-Safe Output**: The clean, merged data is written to a new SSTable with a unique, higher file number.
+Writing to a temporary file ensures that if the system crashes during this slow process, the original files are unharmed.
+6. **Garbage Collection**: After the state is safely committed, a new goroutine is launched to delete the old, now-obsolete SSTable files.
 ## How to Run
 1. Run the main program
 ```bash
