@@ -17,9 +17,10 @@ reads, especially for non-existent keys.
 - [ ] **MANIFEST file**: a central repository for metadata, providing a consistent view of the database's structure and state
 - [ ] **Leveled Compaction**: Evolve the compaction strategy from our "universal" approach to LevelDB's leveled approach,
 where files are organized into levels (L0, L1, L2...). This provides better scalability and more predictable performance by running smaller, more targeted compactions.
-![img.png](img/overview.png)
 
 ## Architecture Overview
+
+![img.png](img/overview.png)
 
 ### WAL entry format
 
