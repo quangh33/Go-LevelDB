@@ -15,10 +15,11 @@ reads, especially for non-existent keys.
 - [x] **Single-Process Safety**: Implements an exclusive file lock to prevent concurrent access from multiple processes, ensuring data integrity.
 ### Future works
 - [ ] **MANIFEST file**: a central repository for metadata, providing a consistent view of the database's structure and state
-## Architecture Overview
 - [ ] **Leveled Compaction**: Evolve the compaction strategy from our "universal" approach to LevelDB's leveled approach,
 where files are organized into levels (L0, L1, L2...). This provides better scalability and more predictable performance by running smaller, more targeted compactions.
 ![img.png](img/overview.png)
+
+## Architecture Overview
 
 ### WAL entry format
 
