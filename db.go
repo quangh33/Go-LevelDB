@@ -13,9 +13,16 @@ import (
 )
 
 const (
-	SSTableCountThreshold = 3
-	MemtableSizeThreshold = 4096 // 4 KB
+	SSTableCountThreshold = 10
+	MemtableSizeThreshold = 4 * 1024 * 1024 // 4 KB
 )
+
+// WriteOptions control the behavior of a write operation.
+type WriteOptions struct {
+	// If true, the write will be flushed from the operating system
+	// buffer cache before the write is considered complete.
+	Sync bool
+}
 
 type DBState struct {
 	NextFileNumber int   `json:"next_file_number"`
@@ -52,6 +59,8 @@ type DB struct {
 	sequenceNum atomic.Uint64
 
 	dbLock *flock.Flock
+
+	compactionInProgress bool
 }
 
 // NewDB creates or opens a database at the specified path.
@@ -175,13 +184,10 @@ func (db *DB) flushMemtable() {
 	db.wal = newWal
 	db.immutableMem = db.mem
 	db.mem = NewMemtable()
-	if len(db.activeSSTables) >= SSTableCountThreshold {
-		go db.compact()
-	}
 	db.mu.Unlock()
 
 	go func(imm *Memtable, walToDelete string, sstNum int) {
-		log.Println("Background flush: Starting to write SSTable %s...", sstNum)
+		log.Printf("Background flush: Starting to write SSTable %d...", sstNum)
 		sstablePath := fmt.Sprintf("%s/%05d.sst", db.dataDir, sstNum)
 
 		itemCount := imm.data.Len()
@@ -209,13 +215,16 @@ func (db *DB) flushMemtable() {
 			log.Printf("Background flush: Deleted old WAL %s", walToDelete)
 		}
 
-		return
+		if len(db.activeSSTables) >= SSTableCountThreshold && !db.compactionInProgress {
+			db.compactionInProgress = true
+			go db.compact()
+		}
 	}(db.immutableMem, rotatedWalPath, sstNum)
 }
 
 // Put adds or updates a key-value pair in the database.
-func (db *DB) Put(key, value []byte) error {
-	seqNum := db.sequenceNum.And(1)
+func (db *DB) Put(wo WriteOptions, key, value []byte) error {
+	seqNum := db.sequenceNum.Add(1)
 	internalKey := InternalKey{
 		UserKey: string(key),
 		SeqNum:  seqNum,
@@ -233,7 +242,7 @@ func (db *DB) Put(key, value []byte) error {
 	memtable := db.mem
 	db.mu.RUnlock()
 
-	if err := wal.Write(entry); err != nil {
+	if err := wal.Write(entry, wo.Sync); err != nil {
 		return err
 	}
 
@@ -275,7 +284,6 @@ func (db *DB) Get(key []byte) ([]byte, bool) {
 		}
 	}
 
-	log.Printf("sstable count: %d", len(activeTables))
 	// 3. Search key in newest to oldest SSTables
 	for i := len(activeTables) - 1; i >= 0; i-- {
 		sstNum := activeTables[i]
@@ -285,6 +293,7 @@ func (db *DB) Get(key []byte) ([]byte, bool) {
 			log.Printf("Error opening SSTable reader for %s: %v", sstablePath, err)
 			continue
 		}
+		defer reader.Close()
 		val, found, err := reader.Get(key)
 		if err != nil {
 			log.Printf("Error reading SSTable %s: %v", sstablePath, err)
@@ -303,7 +312,7 @@ func (db *DB) Get(key []byte) ([]byte, bool) {
 }
 
 // Delete removes a key from the database.
-func (db *DB) Delete(key []byte) error {
+func (db *DB) Delete(wo WriteOptions, key []byte) error {
 	seqNum := db.sequenceNum.Add(1)
 	internalKey := InternalKey{UserKey: string(key), SeqNum: seqNum, Type: OpTypeDelete}
 	entry := &LogEntry{
@@ -317,7 +326,7 @@ func (db *DB) Delete(key []byte) error {
 	memtable := db.mem
 	db.mu.RUnlock()
 
-	if err := wal.Write(entry); err != nil {
+	if err := wal.Write(entry, wo.Sync); err != nil {
 		return err
 	}
 

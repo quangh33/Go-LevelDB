@@ -96,3 +96,10 @@ go run .
 ├── memtable.go       # In-memory skip list-based data store
 ├── sstable.go        # SSTable writing and reading with indexing and filters
 ```
+
+## Benchmark
+### Fill Sequential, Write Async
+- 116 bytes per operation (16-byte key + 100-byte value)
+```
+3107 ns/op	  37.34 MB/s    321854 QPS
+```

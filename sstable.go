@@ -275,3 +275,8 @@ func (r *SSTableReader) Get(userKey []byte) ([]byte, bool, error) {
 
 	return nil, false, nil
 }
+
+// Close closes the underlying file of the reader.
+func (r *SSTableReader) Close() error {
+	return r.file.Close()
+}

@@ -55,7 +55,7 @@ func (w *WAL) Close() error {
 // [Checksum (4 bytes)][Header][KV]
 // Header =  [Seq (8 byte)] [Key Size (4 bytes)] [Value Size (4 bytes)] [Operation (1 byte)]
 // KV     =  [Key] [Value]
-func (w *WAL) Write(entry *LogEntry) error {
+func (w *WAL) Write(entry *LogEntry, sync bool) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -93,8 +93,11 @@ func (w *WAL) Write(entry *LogEntry) error {
 		return err
 	}
 
-	// 4. Fsync to guarantee the write to persistent storage
-	return w.file.Sync()
+	if sync {
+		// 4. Fsync to guarantee the write to persistent storage
+		return w.file.Sync()
+	}
+	return nil
 }
 
 type RecoveredValue struct {

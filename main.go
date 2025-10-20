@@ -10,7 +10,7 @@ func main() {
 
 	db, err := NewDB(dbDir)
 	if err != nil {
-		log.Fatal("Failed to create DB: %v", err)
+		log.Fatalf("Failed to create DB: %v", err)
 	}
 
 	log.Println("Writing data to trigger a flush...")
@@ -18,7 +18,7 @@ func main() {
 		key := []byte(fmt.Sprintf("key-%03d", i))
 		value := []byte(fmt.Sprintf("value-%03d", i))
 
-		if err := db.Put(key, value); err != nil {
+		if err := db.Put(WriteOptions{Sync: true}, key, value); err != nil {
 			log.Fatalf("Failed to put key %s: %v", key, err)
 		}
 	}
