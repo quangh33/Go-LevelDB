@@ -3,12 +3,10 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 )
 
 func main() {
 	dbDir := "mydb"
-	os.RemoveAll(dbDir)
 
 	db, err := NewDB(dbDir)
 	if err != nil {

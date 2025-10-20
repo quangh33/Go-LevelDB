@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gofrs/flock"
 	"log"
 	"os"
 	"path/filepath"
@@ -49,6 +50,8 @@ type DB struct {
 
 	// Global sequence number for all operations
 	sequenceNum atomic.Uint64
+
+	dbLock *flock.Flock
 }
 
 // NewDB creates or opens a database at the specified path.
@@ -59,6 +62,15 @@ func NewDB(dir string) (*DB, error) {
 		return nil, err
 	}
 
+	lockPath := filepath.Join(dir, "LOCK")
+	dbLock := flock.New(lockPath)
+	locked, err := dbLock.TryLock()
+	if err != nil {
+		return nil, fmt.Errorf("failed to acquire database lock: %w", err)
+	}
+	if !locked {
+		return nil, fmt.Errorf("database is locked by another process")
+	}
 	statePath := filepath.Join(dir, "state.json")
 	var state DBState
 
@@ -68,10 +80,12 @@ func NewDB(dir string) (*DB, error) {
 			log.Println("State file not found, initializing with default state.")
 			state = DBState{NextFileNumber: 1, ActiveSSTables: []int{}}
 		} else {
+			dbLock.Unlock()
 			return nil, err
 		}
 	} else {
 		if err := json.Unmarshal(data, &state); err != nil {
+			dbLock.Unlock()
 			return nil, err
 		}
 		log.Printf("Loaded state: NextFileNumber is %d, ActiveSSTables: %v", state.NextFileNumber, state.ActiveSSTables)
@@ -99,6 +113,7 @@ func NewDB(dir string) (*DB, error) {
 		}
 		recoveredData, lastSeq, err := Replay(walPath)
 		if err != nil {
+			dbLock.Unlock()
 			return nil, fmt.Errorf("failed to replay WAL %s: %w", walPath, err)
 		}
 		if lastSeq > maxSeqNum {
@@ -112,6 +127,7 @@ func NewDB(dir string) (*DB, error) {
 
 	wal, err := NewWAL(activeWal)
 	if err != nil {
+		dbLock.Unlock()
 		return nil, err
 	}
 
@@ -121,6 +137,7 @@ func NewDB(dir string) (*DB, error) {
 		dataDir:        dir,
 		nextFileNumber: state.NextFileNumber,
 		activeSSTables: state.ActiveSSTables,
+		dbLock:         dbLock,
 	}
 	db.sequenceNum.Store(maxSeqNum)
 	db.saveState()
@@ -312,5 +329,10 @@ func (db *DB) Delete(key []byte) error {
 }
 
 func (db *DB) Close() error {
+	if db.dbLock != nil {
+		if err := db.dbLock.Unlock(); err != nil {
+			log.Printf("Warning: failed to unlock database: %v", err)
+		}
+	}
 	return db.wal.Close()
 }
