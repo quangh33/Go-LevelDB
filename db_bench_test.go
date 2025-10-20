@@ -28,7 +28,7 @@ func BenchmarkFillSequential(b *testing.B) {
 		b.Fatalf("Failed to create DB: %v", err)
 	}
 	defer db.Close()
-	//defer os.RemoveAll(dbDir)
+	defer os.RemoveAll(dbDir)
 
 	b.ResetTimer()
 	b.SetBytes(int64(16 + 100)) // Set bytes per operation (16-byte key + 100-byte value)

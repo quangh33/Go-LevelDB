@@ -49,7 +49,8 @@ type DB struct {
 	mu           sync.RWMutex
 	wal          *WAL
 	mem          *Memtable
-	immutableMem *Memtable // holw the memtable data being flushed
+	immutableMem *Memtable      // hold the memtable data being flushed
+	wg           sync.WaitGroup // For tracking background goroutines
 
 	dataDir        string
 	nextFileNumber int
@@ -184,10 +185,12 @@ func (db *DB) flushMemtable() {
 	db.wal = newWal
 	db.immutableMem = db.mem
 	db.mem = NewMemtable()
+	db.wg.Add(1)
 	db.mu.Unlock()
 
 	go func(imm *Memtable, walToDelete string, sstNum int) {
 		log.Printf("Background flush: Starting to write SSTable %d...", sstNum)
+		defer db.wg.Done()
 		sstablePath := fmt.Sprintf("%s/%05d.sst", db.dataDir, sstNum)
 
 		itemCount := imm.data.Len()
@@ -217,6 +220,7 @@ func (db *DB) flushMemtable() {
 
 		if len(db.activeSSTables) >= SSTableCountThreshold && !db.compactionInProgress {
 			db.compactionInProgress = true
+			db.wg.Add(1)
 			go db.compact()
 		}
 	}(db.immutableMem, rotatedWalPath, sstNum)

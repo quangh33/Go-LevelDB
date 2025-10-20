@@ -146,6 +146,7 @@ func MergeSSTables(paths []string, outputPath string) error {
 }
 
 func (db *DB) compact() {
+	defer db.wg.Done()
 	db.mu.Lock()
 	log.Println("Starting compaction ...")
 	tablesToCompact := make([]int, len(db.activeSSTables))
