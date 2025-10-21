@@ -14,8 +14,7 @@ to minimize disk reads, especially for non-existent keys.
 - [x] **Automatic Compaction**: process to merge SSTables, reclaim space, and optimize read performance.
 - [x] **Single-Process Safety**: Implements an exclusive file lock to prevent concurrent access from multiple processes, ensuring data integrity.
 ### Future works
-- [ ] **MANIFEST file**: a central repository for metadata, providing a consistent view of the database's structure and state
-- [ ] **Leveled Compaction**: Evolve the compaction strategy from our "universal" approach to LevelDB's leveled approach,
+- [ ] **Leveled Compaction**: implement LevelDB's leveled compaction algorithm,
 where files are organized into levels (L0, L1, L2...). This provides better scalability and more predictable performance by running smaller, more targeted compactions.
 ## Architecture Overview
 
