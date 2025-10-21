@@ -17,11 +17,6 @@ import (
 	"strconv"
 )
 
-const (
-	// DataBlockSize groups key-value pairs into blocks of this size.
-	DataBlockSize = 4096 // 4 KB
-)
-
 // IndexEntry stores the last key of a data block and its location in SSTable file
 type IndexEntry struct {
 	LastKey InternalKey

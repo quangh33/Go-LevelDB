@@ -13,13 +13,6 @@ import (
 	"sync/atomic"
 )
 
-const (
-	SSTableCountThreshold = 10
-	MemtableSizeThreshold = 4 * 1024 * 1024 // 4 MB
-	TableCacheSize        = 128             // Number of SSTable readers to keep in cache
-	BlockCacheSize        = 8 * 1024 * 1024 // 8MB block cache
-)
-
 // WriteOptions control the behavior of a write operation.
 type WriteOptions struct {
 	// If true, the write will be flushed from the operating system

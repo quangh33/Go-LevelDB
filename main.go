@@ -41,7 +41,6 @@ func main() {
 	iter := db.NewIterator()
 	defer iter.Close()
 
-	// Seek to the first key and iterate
 	count := 0
 	for iter.SeekToFirst(); iter.Valid(); iter.Next() {
 		key := iter.Key()
@@ -50,7 +49,6 @@ func main() {
 		count++
 	}
 
-	// Check for any errors during iteration
 	if err := iter.Error(); err != nil {
 		log.Fatalf("Iterator failed with error: %v", err)
 	}
@@ -61,6 +59,6 @@ func main() {
 	if count != 2 {
 		log.Fatalf("FAILED: Expected to find 2 live keys, but found %d.", count)
 	}
-	log.Println("\nSUCCESS: Iterator correctly hid older and deleted versions.")
+	log.Println("\nSUCCESS")
 	os.RemoveAll(dbDir)
 }
