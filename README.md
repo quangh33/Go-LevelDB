@@ -9,15 +9,14 @@ in an in-memory Memtable for high-speed write performance.
 - [x] **Sorted In-Memory Storage**: Uses a Skip List for the Memtable, keeping keys sorted at all times for efficient 
 flushing and enabling range scans.
 - [x] **Persistent, Immutable Storage**: Flushes full Memtables to immutable, sorted SSTable (.sst) files on disk
-- [x] **Efficient Lookups**: SSTables are highly structured with block-based indexes and Bloom filters to minimize disk
-reads, especially for non-existent keys.
+- [x] **Efficient Lookups**: SSTables are highly structured with block-based indexes, Bloom filters, Block cache, and Table cache
+to minimize disk reads, especially for non-existent keys.
 - [x] **Automatic Compaction**: process to merge SSTables, reclaim space, and optimize read performance.
 - [x] **Single-Process Safety**: Implements an exclusive file lock to prevent concurrent access from multiple processes, ensuring data integrity.
 ### Future works
 - [ ] **MANIFEST file**: a central repository for metadata, providing a consistent view of the database's structure and state
 - [ ] **Leveled Compaction**: Evolve the compaction strategy from our "universal" approach to LevelDB's leveled approach,
 where files are organized into levels (L0, L1, L2...). This provides better scalability and more predictable performance by running smaller, more targeted compactions.
-
 ## Architecture Overview
 
 ![img.png](img/overview.png)
