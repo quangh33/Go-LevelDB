@@ -342,6 +342,9 @@ func (db *DB) Delete(wo WriteOptions, key []byte) error {
 }
 
 func (db *DB) Close() error {
+	log.Println("Closing database, waiting for background work to finish...")
+	db.wg.Wait()
+	log.Println("Background work finished.")
 	if db.dbLock != nil {
 		if err := db.dbLock.Unlock(); err != nil {
 			log.Printf("Warning: failed to unlock database: %v", err)

@@ -21,6 +21,7 @@ func generateValue(size int) []byte {
 
 // BenchmarkFillSequential measures the performance of writing keys in sequential order.
 func BenchmarkFillSequential(b *testing.B) {
+	fmt.Printf("Start BenchmarkFillSequential ...")
 	dbDir := "benchmark_fillseq"
 	os.RemoveAll(dbDir)
 	db, err := NewDB(dbDir)

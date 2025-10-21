@@ -159,6 +159,7 @@ func (db *DB) compact() {
 	for _, num := range tablesToCompact {
 		pathsToCompact = append(pathsToCompact, fmt.Sprintf("%s/%05d.sst", db.dataDir, num))
 	}
+	log.Printf("paths to compact: %v", pathsToCompact)
 	newSSTablePath := fmt.Sprintf("%s/%05d.sst", db.dataDir, outputNum)
 	tmpPath := newSSTablePath + ".tmp"
 
@@ -197,6 +198,9 @@ func (db *DB) compact() {
 	log.Println("Compaction completed successfully.")
 	// Delete old SSTable files asynchronously
 	go func(pathsToDelete []string) {
+		db.wg.Add(1)
+		defer db.wg.Done()
+		log.Printf("Start deleting old sst files: %v", pathsToDelete)
 		for _, path := range pathsToDelete {
 			if err := os.Remove(path); err != nil {
 				log.Printf("ERROR: Failed to remove old SSTable %s after compaction: %v", path, err)
