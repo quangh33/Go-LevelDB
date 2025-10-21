@@ -98,8 +98,20 @@ go run .
 ```
 
 ## Benchmark
-### Fill Sequential, Write Async
 - 116 bytes per operation (16-byte key + 100-byte value)
+### Fill Sequential, Write Async
 ```
 3107 ns/op	  37.34 MB/s    321854 QPS
+```
+### Fill Random, Write Async
+```
+4126 ns/op	  28.11 MB/s    242365 QPS
+```
+### Read Sequential
+```
+95067 ns/op     10518 QPS
+```
+### Read Random
+```
+92072 ns/op     10861 QPS
 ```

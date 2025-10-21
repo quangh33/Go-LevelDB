@@ -20,28 +20,27 @@ func generateValue(size int) []byte {
 }
 
 // BenchmarkFillSequential measures the performance of writing keys in sequential order.
-func BenchmarkFillSequential(b *testing.B) {
-	fmt.Printf("Start BenchmarkFillSequential ...")
-	dbDir := "benchmark_fillseq"
-	os.RemoveAll(dbDir)
-	db, err := NewDB(dbDir)
-	if err != nil {
-		b.Fatalf("Failed to create DB: %v", err)
-	}
-	defer db.Close()
-	defer os.RemoveAll(dbDir)
-
-	b.ResetTimer()
-	b.SetBytes(int64(16 + 100)) // Set bytes per operation (16-byte key + 100-byte value)
-
-	for i := 0; i < b.N; i++ {
-		key := generateKey(i)
-		value := generateValue(100)
-		if err := db.Put(WriteOptions{Sync: false}, key, value); err != nil {
-			b.Fatalf("Put failed: %v", err)
-		}
-	}
-}
+//func BenchmarkFillSequential(b *testing.B) {
+//	dbDir := "benchmark_fillseq"
+//	os.RemoveAll(dbDir)
+//	db, err := NewDB(dbDir)
+//	if err != nil {
+//		b.Fatalf("Failed to create DB: %v", err)
+//	}
+//	defer db.Close()
+//	defer os.RemoveAll(dbDir)
+//
+//	b.ResetTimer()
+//	b.SetBytes(int64(16 + 100)) // Set bytes per operation (16-byte key + 100-byte value)
+//
+//	for i := 0; i < b.N; i++ {
+//		key := generateKey(i)
+//		value := generateValue(100)
+//		if err := db.Put(WriteOptions{Sync: false}, key, value); err != nil {
+//			b.Fatalf("Put failed: %v", err)
+//		}
+//	}
+//}
 
 // BenchmarkFillRandom measures the performance of writing keys in random order.
 //func BenchmarkFillRandom(b *testing.B) {
@@ -52,9 +51,8 @@ func BenchmarkFillSequential(b *testing.B) {
 //		b.Fatalf("Failed to create DB: %v", err)
 //	}
 //	defer db.Close()
-//	//defer os.RemoveAll(dbDir)
+//	defer os.RemoveAll(dbDir)
 //
-//	// Create a permutation of keys to write in random order.
 //	numKeys := b.N
 //	keys := make([][]byte, numKeys)
 //	for i := 0; i < numKeys; i++ {
@@ -70,67 +68,65 @@ func BenchmarkFillSequential(b *testing.B) {
 //	for i := 0; i < b.N; i++ {
 //		key := keys[i]
 //		value := generateValue(100)
-//		if err := db.Put(key, value); err != nil {
+//		if err := db.Put(WriteOptions{Sync: false}, key, value); err != nil {
 //			b.Fatalf("Put failed: %v", err)
 //		}
 //	}
 //}
 
 // setupBenchmarkRead pre-populates a database for read benchmarks.
-//func setupBenchmarkRead(b *testing.B, numKeys int) (*DB, func()) {
-//	fmt.Println("Start setup benchmark")
-//	dbDir := fmt.Sprintf("benchmark_read_%d", numKeys)
-//	os.RemoveAll(dbDir)
-//	db, err := NewDB(dbDir)
-//	if err != nil {
-//		b.Fatalf("Failed to create DB: %v", err)
-//	}
-//
-//	for i := 0; i < numKeys; i++ {
-//		key := generateKey(i)
-//		value := generateValue(100)
-//		if err := db.Put(key, value); err != nil {
-//			b.Fatalf("Put failed: %v", err)
-//		}
-//	}
-//
-//	db.flushMemtable()
-//
-//	cleanup := func() {
-//		db.Close()
-//		os.RemoveAll(dbDir)
-//	}
-//	fmt.Println("Finish setup benchmark")
-//	return db, cleanup
-//}
-//
-//// BenchmarkReadRandom measures random read performance.
-//func BenchmarkReadRandom(b *testing.B) {
-//	numKeys := 10000
-//	db, cleanup := setupBenchmarkRead(b, numKeys)
-//	defer cleanup()
-//
-//	b.ResetTimer()
-//
-//	for i := 0; i < b.N; i++ {
-//		key := generateKey(rand.Intn(numKeys))
-//		db.Get(key)
-//	}
-//}
+func setupBenchmarkRead(b *testing.B, numKeys int) (*DB, func()) {
+	fmt.Println("Start setup benchmark")
+	dbDir := fmt.Sprintf("benchmark_read_%d", numKeys)
+	os.RemoveAll(dbDir)
+	db, err := NewDB(dbDir)
+	if err != nil {
+		b.Fatalf("Failed to create DB: %v", err)
+	}
 
-//// BenchmarkReadSequential measures sequential read performance.
-//func BenchmarkReadSequential(b *testing.B) {
-//	numKeys := 100000
-//	db, cleanup := setupBenchmarkRead(b, numKeys)
-//	defer cleanup()
-//
-//	b.ResetTimer()
-//
-//	for i := 0; i < b.N; i++ {
-//		// In a real benchmark, you would use an iterator.
-//		// For this test, we'll simulate it by getting keys sequentially.
-//		// This isn't perfect but gives a good approximation.
-//		key := generateKey(i % numKeys)
-//		db.Get(key)
-//	}
-//}
+	for i := 0; i < numKeys; i++ {
+		key := generateKey(i)
+		value := generateValue(100)
+		if err := db.Put(WriteOptions{Sync: false}, key, value); err != nil {
+			b.Fatalf("Put failed: %v", err)
+		}
+	}
+
+	db.flushMemtable()
+
+	cleanup := func() {
+		db.Close()
+		os.RemoveAll(dbDir)
+	}
+	fmt.Println("Finish setup benchmark")
+	return db, cleanup
+}
+
+// BenchmarkReadRandom measures random read performance.
+func BenchmarkReadRandom(b *testing.B) {
+	fmt.Println("Start BenchmarkReadRandom")
+	numKeys := 100000
+	db, cleanup := setupBenchmarkRead(b, numKeys)
+	defer cleanup()
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		key := generateKey(rand.Intn(numKeys))
+		db.Get(key)
+	}
+}
+
+// BenchmarkReadSequential measures sequential read performance.
+func BenchmarkReadSequential(b *testing.B) {
+	numKeys := 100000
+	db, cleanup := setupBenchmarkRead(b, numKeys)
+	defer cleanup()
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		key := generateKey(i % numKeys)
+		db.Get(key)
+	}
+}
