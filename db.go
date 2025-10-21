@@ -15,8 +15,9 @@ import (
 
 const (
 	SSTableCountThreshold = 10
-	MemtableSizeThreshold = 4 * 1024 * 1024 // 4 KB
+	MemtableSizeThreshold = 4 * 1024 * 1024 // 4 MB
 	TableCacheSize        = 128             // Number of SSTable readers to keep in cache
+	BlockCacheSize        = 8 * 1024 * 1024 // 8MB block cache
 )
 
 // WriteOptions control the behavior of a write operation.
@@ -66,6 +67,7 @@ type DB struct {
 	compactionInProgress bool
 
 	tableCache *lru.Cache[int, *SSTableReader]
+	blockCache *lru.Cache[string, []byte]
 }
 
 // NewDB creates or opens a database at the specified path.
@@ -86,6 +88,7 @@ func NewDB(dir string) (*DB, error) {
 		return nil, fmt.Errorf("database is locked by another process")
 	}
 
+	// tableCache caches the SSTableReader
 	tableCache, err := lru.NewWithEvict[int, *SSTableReader](TableCacheSize, func(key int, value *SSTableReader) {
 		// When a reader is evicted from the cache, close its file handle.
 		value.Close()
@@ -94,6 +97,14 @@ func NewDB(dir string) (*DB, error) {
 		dbLock.Unlock()
 		return nil, fmt.Errorf("failed to create table cache: %w", err)
 	}
+
+	// blockCache caches the actual data block of SSTable
+	blockCache, err := lru.New[string, []byte](BlockCacheSize / DataBlockSize)
+	if err != nil {
+		dbLock.Unlock()
+		return nil, fmt.Errorf("failed to create block cache: %w", err)
+	}
+
 	statePath := filepath.Join(dir, "state.json")
 	var state DBState
 
@@ -162,6 +173,7 @@ func NewDB(dir string) (*DB, error) {
 		activeSSTables: state.ActiveSSTables,
 		dbLock:         dbLock,
 		tableCache:     tableCache,
+		blockCache:     blockCache,
 	}
 	db.sequenceNum.Store(maxSeqNum)
 	db.saveState()
@@ -177,7 +189,7 @@ func (db *DB) findTable(sstNum int) (*SSTableReader, error) {
 
 	// Cache miss: Open the file and create a new reader.
 	sstablePath := fmt.Sprintf("%s/%05d.sst", db.dataDir, sstNum)
-	reader, err := NewSSTableReader(sstablePath)
+	reader, err := NewSSTableReader(sstablePath, db.blockCache)
 	if err != nil {
 		return nil, err
 	}
