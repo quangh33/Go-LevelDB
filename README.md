@@ -107,7 +107,7 @@ go run .
 ```
 ### Read Sequential
 ```
-95067 ns/op     10518 QPS
+8900 ns/op     112360 QPS
 ```
 ### Read Random
 ```

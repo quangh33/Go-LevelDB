@@ -396,3 +396,28 @@ func (db *DB) Close() error {
 	}
 	return db.wal.Close()
 }
+
+// NewIterator creates a new iterator over the database.
+func (db *DB) NewIterator() Iterator {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	// Collect iterators from all sources.
+	iters := make([]Iterator, 0)
+
+	iters = append(iters, db.mem.NewIterator())
+	if db.immutableMem != nil {
+		iters = append(iters, db.immutableMem.NewIterator())
+	}
+	for i := len(db.activeSSTables) - 1; i >= 0; i-- {
+		sstNum := db.activeSSTables[i]
+		reader, err := db.findTable(sstNum)
+		if err != nil {
+			log.Printf("Error creating iterator for SSTable %d: %v", sstNum, err)
+			continue
+		}
+		iters = append(iters, reader.NewIterator())
+	}
+
+	return NewMergingIterator(iters)
+}

@@ -51,3 +51,46 @@ func (m *Memtable) Get(key []byte) ([]byte, bool) {
 func (m *Memtable) ApproximateSize() int {
 	return m.size
 }
+
+// NewIterator returns an iterator over the memtable's contents.
+func (m *Memtable) NewIterator() Iterator {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return &memtableIterator{
+		list: m.data,
+	}
+}
+
+type memtableIterator struct {
+	list    *skiplist.SkipList
+	current *skiplist.Element
+}
+
+func (it *memtableIterator) Valid() bool {
+	return it.current != nil
+}
+
+func (it *memtableIterator) Key() InternalKey {
+	return it.current.Key().(InternalKey)
+}
+
+func (it *memtableIterator) Value() []byte {
+	return it.current.Value.([]byte)
+}
+
+func (it *memtableIterator) Next() {
+	it.current = it.current.Next()
+}
+
+func (it *memtableIterator) Close() error {
+	it.current = nil
+	return nil
+}
+
+func (it *memtableIterator) Error() error {
+	return nil
+}
+
+func (it *memtableIterator) SeekToFirst() {
+	it.current = it.list.Front()
+}

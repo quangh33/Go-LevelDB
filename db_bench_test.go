@@ -119,14 +119,35 @@ func BenchmarkReadRandom(b *testing.B) {
 
 // BenchmarkReadSequential measures sequential read performance.
 func BenchmarkReadSequential(b *testing.B) {
-	numKeys := 100000
+	numKeys := 500000
 	db, cleanup := setupBenchmarkRead(b, numKeys)
 	defer cleanup()
 
+	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		key := generateKey(i % numKeys)
-		db.Get(key)
+		it := db.NewIterator()
+		it.SeekToFirst()
+
+		count := 0
+		for it.Valid() {
+			_ = it.Key()
+			_ = it.Value()
+			it.Next()
+			count++
+		}
+
+		if err := it.Error(); err != nil {
+			b.Fatalf("Iterator error: %v", err)
+		}
+
+		if count != numKeys {
+			b.Fatalf("Expected %d keys, but iterated over %d", numKeys, count)
+		}
+
+		it.Close()
 	}
+
+	b.StopTimer()
 }

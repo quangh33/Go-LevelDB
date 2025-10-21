@@ -3,39 +3,64 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 )
 
 func main() {
-	dbDir := "mydb"
+	dbDir := "mydb_iterator_test"
+	os.RemoveAll(dbDir)
 
 	db, err := NewDB(dbDir)
 	if err != nil {
 		log.Fatalf("Failed to create DB: %v", err)
 	}
+	defer db.Close()
 
-	log.Println("Writing data to trigger a flush...")
-	for i := 0; i < 1200; i++ {
-		key := []byte(fmt.Sprintf("key-%03d", i))
-		value := []byte(fmt.Sprintf("value-%03d", i))
+	wo := WriteOptions{Sync: true}
 
-		if err := db.Put(WriteOptions{Sync: true}, key, value); err != nil {
-			log.Fatalf("Failed to put key %s: %v", key, err)
-		}
+	log.Println("--- Populating database with test data ---")
+	if err := db.Put(wo, []byte("apple"), []byte("red")); err != nil {
+		log.Fatalf("Put failed: %v", err)
+	}
+	if err := db.Put(wo, []byte("banana"), []byte("yellow")); err != nil {
+		log.Fatalf("Put failed: %v", err)
+	}
+	if err := db.Put(wo, []byte("cherry"), []byte("red")); err != nil {
+		log.Fatalf("Put failed: %v", err)
+	}
+	if err := db.Put(wo, []byte("apple"), []byte("green")); err != nil {
+		log.Fatalf("Put failed: %v", err)
+	}
+	if err := db.Delete(wo, []byte("banana")); err != nil {
+		log.Fatalf("Delete failed: %v", err)
+	}
+	log.Println("--- Data population complete ---")
+
+	log.Println("\n--- Performing full scan with MergingIterator ---")
+
+	iter := db.NewIterator()
+	defer iter.Close()
+
+	// Seek to the first key and iterate
+	count := 0
+	for iter.SeekToFirst(); iter.Valid(); iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+		fmt.Printf("  Key: %s, Value: %s\n", key.UserKey, string(value))
+		count++
 	}
 
-	log.Println("Finished writing data.")
-	db.Close()
-
-	db2, err := NewDB(dbDir)
-	if err != nil {
-		log.Fatalf("Failed to reopen DB: %v", err)
+	// Check for any errors during iteration
+	if err := iter.Error(); err != nil {
+		log.Fatalf("Iterator failed with error: %v", err)
 	}
-	defer db2.Close()
 
-	keyToFind := []byte("key-010")
-	val, ok := db2.Get(keyToFind)
-	if !ok {
-		log.Fatalf("Key 'key-010' not found")
+	log.Printf("--- Scan complete. Found %d live keys. ---", count)
+
+	// Verification
+	if count != 2 {
+		log.Fatalf("FAILED: Expected to find 2 live keys, but found %d.", count)
 	}
-	log.Println(string(val))
+	log.Println("\nSUCCESS: Iterator correctly hid older and deleted versions.")
+	os.RemoveAll(dbDir)
 }

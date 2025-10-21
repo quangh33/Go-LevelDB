@@ -240,7 +240,7 @@ func (r *SSTableReader) Get(userKey []byte) ([]byte, bool, error) {
 
 	searchKey := InternalKey{
 		UserKey: string(userKey),
-		SeqNum:  math.MaxInt64,
+		SeqNum:  math.MaxUint64,
 		Type:    OpTypePut,
 	}
 
@@ -309,4 +309,158 @@ func (r *SSTableReader) Get(userKey []byte) ([]byte, bool, error) {
 // Close closes the underlying file of the reader.
 func (r *SSTableReader) Close() error {
 	return r.file.Close()
+}
+
+// sstableBlockIterator iterates over a single data block in memory.
+type sstableBlockIterator struct {
+	reader *bytes.Reader
+	key    InternalKey
+	value  []byte
+	valid  bool
+	err    error
+}
+
+func newBlockIterator(data []byte) *sstableBlockIterator {
+	return &sstableBlockIterator{
+		reader: bytes.NewReader(data),
+	}
+}
+
+func (it *sstableBlockIterator) Valid() bool {
+	return it.valid
+}
+
+func (it *sstableBlockIterator) Key() InternalKey {
+	return it.key
+}
+
+func (it *sstableBlockIterator) Value() []byte {
+	return it.value
+}
+
+func (it *sstableBlockIterator) Next() {
+	it.readNext()
+}
+
+func (it *sstableBlockIterator) SeekToFirst() {
+	it.reader.Seek(0, io.SeekStart)
+	it.readNext()
+}
+
+func (it *sstableBlockIterator) Error() error { return it.err }
+
+func (it *sstableBlockIterator) Close() error { return nil }
+
+func (it *sstableBlockIterator) readNext() {
+	if it.reader.Len() == 0 {
+		it.valid = false
+		return
+	}
+
+	var keySize, valueSize uint32
+	if err := binary.Read(it.reader, binary.LittleEndian, &keySize); err != nil {
+		if err != io.EOF {
+			it.err = err
+		}
+		it.valid = false
+		return
+	}
+	if err := binary.Read(it.reader, binary.LittleEndian, &valueSize); err != nil {
+		it.err = err
+		it.valid = false
+		return
+	}
+
+	keyBytes := make([]byte, keySize)
+	if _, err := io.ReadFull(it.reader, keyBytes); err != nil {
+		it.err = err
+		it.valid = false
+		return
+	}
+
+	var ik InternalKey
+	if err := gob.NewDecoder(bytes.NewReader(keyBytes)).Decode(&ik); err != nil {
+		it.err = err
+		it.valid = false
+		return
+	}
+	it.key = ik
+
+	valueBytes := make([]byte, valueSize)
+	if _, err := io.ReadFull(it.reader, valueBytes); err != nil {
+		it.err = err
+		it.valid = false
+		return
+	}
+	it.value = valueBytes
+	it.valid = true
+}
+
+// NewIterator creates a new iterator over the SSTable.
+func (r *SSTableReader) NewIterator() Iterator {
+	return &sstableFileIterator{
+		reader: r,
+	}
+}
+
+// sstableFileIterator implements the Iterator interface for an entire SSTable.
+type sstableFileIterator struct {
+	reader     *SSTableReader
+	blockIter  *sstableBlockIterator
+	blockIndex int
+	err        error
+}
+
+func (it *sstableFileIterator) Valid() bool {
+	return it.blockIter != nil && it.blockIter.Valid()
+}
+
+func (it *sstableFileIterator) Key() InternalKey {
+	return it.blockIter.Key()
+}
+
+func (it *sstableFileIterator) Value() []byte {
+	return it.blockIter.Value()
+}
+
+func (it *sstableFileIterator) Next() {
+	if it.blockIter == nil {
+		return
+	}
+	it.blockIter.Next()
+	if !it.blockIter.Valid() {
+		it.blockIndex++
+		it.loadBlock()
+	}
+}
+
+func (it *sstableFileIterator) Close() error {
+	it.blockIter = nil
+	return nil
+}
+
+func (it *sstableFileIterator) Error() error {
+	return it.err
+}
+
+func (it *sstableFileIterator) SeekToFirst() {
+	it.blockIndex = 0
+	it.loadBlock()
+}
+
+func (it *sstableFileIterator) loadBlock() {
+	if it.blockIndex >= len(it.reader.index) {
+		it.blockIter = nil
+		return
+	}
+	entry := it.reader.index[it.blockIndex]
+
+	blockData, err := it.reader.getBlock(entry)
+	if err != nil {
+		it.err = err
+		it.blockIter = nil
+		return
+	}
+	it.blockIter = newBlockIterator(blockData)
+	it.blockIter.SeekToFirst()
 }
