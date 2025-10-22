@@ -37,7 +37,7 @@ type SSTableReader struct {
 	index      []IndexEntry
 	filter     *bloom.BloomFilter
 	cmp        internalKeyComparable
-	blockCache *lru.Cache[string, []byte] // NEW: Reference to the block cache
+	blockCache *lru.Cache[string, []byte]
 	fileNum    int
 }
 
