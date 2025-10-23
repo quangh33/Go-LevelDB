@@ -1,3 +1,4 @@
+![img.png](img/logo.png)
 # Go-LevelDB - A [LevelDB](https://github.com/google/leveldb)-Inspired Key-Value Store
 
 Go-LevelDB is a on-disk key-value storage engine built from scratch in Go,
